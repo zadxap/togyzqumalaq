@@ -8,6 +8,7 @@ import {
   type Position,
 } from '../game/engine'
 import { Board, type BoardAnim } from '../components/Board'
+import { RulesSheet } from '../components/RulesSheet'
 import { useLang } from '../i18n'
 import { IconBack, IconRobot } from '../components/Icons'
 
@@ -23,6 +24,7 @@ export function MatchAIScreen() {
   const [anim, setAnim] = useState<BoardAnim | null>(null)
   const [thinking, setThinking] = useState(false)
   const [result, setResult] = useState<Outcome | null>(null)
+  const [rulesOpen, setRulesOpen] = useState(false)
 
   const workerRef = useRef<Worker | null>(null)
   const posRef = useRef(pos)
@@ -53,14 +55,16 @@ export function MatchAIScreen() {
   }, [])
 
   const onAnimDone = () => {
+    setAnim(null) // обязательно: иначе доска «висит в анимации» и клики блокируются
     turnRef.current = null
+    turnWasRef.current = null
     if (outcomeRef.current.type !== 'playing') {
       setResult(outcomeRef.current)
       return
     }
     const cur = posRef.current
     // мой ход завершён и очередь ИИ
-    if (turnWasRef.current === 'me' && cur.status === 'playing' && cur.turn === 1) {
+    if (cur.status === 'playing' && cur.turn === 1) {
       setThinking(true)
       workerRef.current?.postMessage({
         position: cur,
@@ -129,7 +133,9 @@ export function MatchAIScreen() {
         <h1 className="topbar-title">
           {t('playAI')} · {t(level)}
         </h1>
-        <div />
+        <button type="button" className="iconbtn" onClick={() => setRulesOpen(true)} aria-label="rules">
+          ?
+        </button>
       </header>
 
       <div className="turn-bar">
@@ -149,6 +155,8 @@ export function MatchAIScreen() {
           t('oppTurn')
         )}
       </div>
+
+      <p className="dim-note hint">{t('hintClick')}</p>
 
       <Board
         position={pos}
@@ -171,6 +179,8 @@ export function MatchAIScreen() {
           </button>
         </div>
       )}
+
+      <RulesSheet open={rulesOpen} onClose={() => setRulesOpen(false)} />
     </div>
   )
 }

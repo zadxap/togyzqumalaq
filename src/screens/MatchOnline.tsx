@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { applyMove, type Outcome, type Position } from '../game/engine'
 import { Board, type BoardAnim } from '../components/Board'
+import { RulesSheet } from '../components/RulesSheet'
 import { useAuth } from '../auth'
 import { useLang } from '../i18n'
 import {
@@ -32,6 +33,7 @@ export function MatchOnlineScreen() {
   const [spectators, setSpectators] = useState(0)
   const [copied, setCopied] = useState(false)
   const [eloDelta, setEloDelta] = useState<number | null>(null)
+  const [rulesOpen, setRulesOpen] = useState(false)
 
   const knownCountRef = useRef(0)
   const displayPosRef = useRef<Position | null>(null)
@@ -244,6 +246,9 @@ export function MatchOnlineScreen() {
           {names[0]} <span className="dim">·</span> {names[1]}
         </h1>
         <div className="topbar-actions">
+          <button type="button" className="iconbtn" onClick={() => setRulesOpen(true)} aria-label="rules">
+            ?
+          </button>
           <span className="spectators" title={t('spectators')}>
             👁 {spectators}
           </span>
@@ -281,6 +286,8 @@ export function MatchOnlineScreen() {
         onHoleClick={play}
         names={names}
       />
+
+      <RulesSheet open={rulesOpen} onClose={() => setRulesOpen(false)} />
 
       <div className="match-meta">
         <Avatar uid={userId ?? 'x'} name={profile?.display_name ?? '?'} size={22} />

@@ -826,3 +826,88 @@ h3 {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── подсказка и правила ── */
+.hint {
+  text-align: center;
+  font-size: 12.5px;
+  padding: 2px 16px 0;
+}
+.rules-text {
+  white-space: pre-wrap;
+  line-height: 1.65;
+  font-size: 13.5px;
+}
+.turn-badge em {
+  font-style: normal;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+/* ── нижний лист (sheet) ── */
+.sheet-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  visibility: hidden;
+  transition: visibility 0s 0.3s;
+}
+.sheet-wrap.open {
+  pointer-events: auto;
+  visibility: visible;
+  transition: visibility 0s;
+}
+.sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition: opacity 0.24s;
+}
+.sheet-wrap.open .sheet-backdrop {
+  opacity: 1;
+}
+.sheet {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translate(-50%, 100%);
+  width: min(460px, 100%);
+  max-height: 88dvh;
+  overflow-y: auto;
+  background: var(--surface);
+  border-radius: 24px 24px 0 0;
+  padding: 8px 20px calc(22px + env(safe-area-inset-bottom, 0px));
+  transition: transform 0.28s var(--sheet-ease, cubic-bezier(0.32, 0.72, 0.24, 1));
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+}
+.sheet-wrap.open .sheet {
+  transform: translate(-50%, 0);
+}
+.sheet-handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(243, 237, 226, 0.16);
+  margin: 6px auto 4px;
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0 12px;
+}
+.sheet-head h2 {
+  font-size: 17.5px;
+  font-weight: 800;
+}
+.sheet-body {
+  font-size: 15px;
+}
+.sheet-note {
+  color: var(--ink2, #b3a48f);
+  font-size: 14px;
+  line-height: 1.55;
+}
