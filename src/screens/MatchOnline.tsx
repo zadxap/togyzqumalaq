@@ -38,6 +38,7 @@ export function MatchOnlineScreen() {
   const [eloDelta, setEloDelta] = useState<number | null>(null)
   const [rulesOpen, setRulesOpen] = useState(false)
   const [log, setLog] = useState<LogEntry[]>([])
+  const [joinErr, setJoinErr] = useState<string | null>(null)
 
   const knownCountRef = useRef(0)
   const displayPosRef = useRef<Position | null>(null)
@@ -220,20 +221,26 @@ export function MatchOnlineScreen() {
               type="button"
               className="btn btn-primary"
               onClick={async () => {
-                await joinMatch(row.id, userId!)
-                const m = await fetchMatch(row.id)
-                if (m) {
-                  setRow(m)
-                  knownCountRef.current = m.move_count
-                  displayPosRef.current = m.position
-                  setPos(m.position)
-                  setPhase('playing')
+                setJoinErr(null)
+                try {
+                  await joinMatch(row.id, userId!)
+                  const m = await fetchMatch(row.id)
+                  if (m) {
+                    setRow(m)
+                    knownCountRef.current = m.move_count
+                    displayPosRef.current = m.position
+                    setPos(m.position)
+                    setPhase('playing')
+                  }
+                } catch (e) {
+                  setJoinErr((e as { message?: string }).message ?? String(e))
                 }
               }}
             >
               {t('join')}
             </button>
           )}
+          {joinErr && <p className="field-err">{t('authErr')}: {joinErr}</p>}
           {isHost && (
             <>
               <button

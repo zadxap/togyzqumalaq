@@ -210,9 +210,8 @@ describe('конец партии', () => {
     expect(r.position.kazan[0]).toBe(82)
   })
 
-  it('атсырау: сопернику даётся один дополнительный ход (флаг и ход у меня)', () => {
-    // сторона 1 вся пуста; мой ход из лунки 0 не кормит соперника (9 камней — все свои)
-    const p = mk([9, 9, 9, 9, 9, 9, 9, 9, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+  it('атсырау: у соперника во всех лунках ≤1 камня → доп. ход остаётся у меня', () => {
+    const p = mk([9, 9, 9, 9, 9, 9, 9, 9, 9, 1, 1, 1, 1, 1, 1, 1, 1, 1])
     const r = applyMove(p, 0)
     expect(r.outcome).toEqual({ type: 'atsyrau-extra', stuck: 1 })
     expect(r.position.turn).toBe(0)
@@ -221,16 +220,19 @@ describe('конец партии', () => {
   })
 
   it('дополнительный ход, спасший соперника → игра продолжается', () => {
+    // мой доп. ход из лунки 8 тремя: 8(→1), 9(1→2 — середина, не захват!), 10(1→2 → чётно, последний → захват 1)
+    // у соперника появилась лунка с 2 камнями (индекс 9) — атсырау снят
     const p = mk(
-      [10, 10, 10, 10, 10, 10, 10, 10, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1],
       [0, 0],
       {},
       0,
       true,
     )
-    const r = applyMove(p, 1) // 10 камней: 1..8 свои, 9 и 10 — чужие
-    expect(r.position.holes[9]).toBe(1)
-    expect(r.position.holes[10]).toBe(1)
+    const r = applyMove(p, 8)
+    expect(r.position.holes[9]).toBe(2)
+    expect(r.position.holes[10]).toBe(0)
+    expect(r.position.kazan[0]).toBe(2)
     expect(r.outcome).toEqual({ type: 'playing' })
     expect(r.position.turn).toBe(1)
     expect(r.position.extraMove).toBe(false)

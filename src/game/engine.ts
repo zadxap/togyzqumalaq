@@ -100,11 +100,19 @@ export function legalMoves(pos: Position, side: Side): number[] {
 
 /** есть ли у стороны хотя бы один ход */
 function canMove(holes: number[], tuzdyk: (Side | null)[], side: Side): boolean {
+  return !isStuck(holes, tuzdyk, side)
+}
+
+/**
+ * Атсырау (по законам WTKF): во ВСЕХ не-туздык лунках стороны не более одного
+ * құмалақа (или пусто). Игрок в таком положении не делает ходов.
+ */
+function isStuck(holes: number[], tuzdyk: (Side | null)[], side: Side): boolean {
   for (let k = 0; k < HOLES_PER_SIDE; k++) {
     const i = side * HOLES_PER_SIDE + k
-    if (tuzdyk[i] === null && holes[i] > 0) return true
+    if (tuzdyk[i] === null && holes[i] >= 2) return false
   }
-  return false
+  return true
 }
 
 function hasTuzdyk(tuzdyk: (Side | null)[], side: Side): boolean {
@@ -214,11 +222,11 @@ export function applyMove(pos: Position, hole: number): MoveResult {
     }
   }
 
-  // 2) атсырау у следующего игрока
-  if (!canMove(holes, tuzdyk, opp)) {
-    if (pos.extraMove || !canMove(holes, tuzdyk, side)) {
-      // это уже был дополнительный ход, либо ходившему тоже нечем:
-      // атсырау финализируется — камни доски идут владельцам сторон
+  // 2) атсырау у следующего игрока (все лунки ≤1 камня)
+  if (isStuck(holes, tuzdyk, opp)) {
+    if (pos.extraMove || isStuck(holes, tuzdyk, side)) {
+      // это уже был дополнительный ход, либо ходившему тоже атсырау:
+      // партия завершается — камни доски идут владельцам сторон
       for (let i = 0; i < TOTAL_HOLES; i++) {
         if (tuzdyk[i] === null && holes[i] > 0) {
           kazan[sideOfHole(i)] += holes[i]

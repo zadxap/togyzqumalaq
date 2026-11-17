@@ -130,6 +130,8 @@ export function LobbyScreen() {
       }
       if (m.status === 'waiting' && m.player0 !== userId) await joinMatch(m.id, userId!)
       nav(`/m/${m.id}`)
+    } catch (e) {
+      setCodeErr(String((e as { message?: string }).message ?? e))
     } finally {
       setBusy(false)
     }
