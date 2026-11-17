@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { applyMove, type Outcome, type Position } from '../game/engine'
+import { sfx } from '../sound'
 import { Board, type BoardAnim } from '../components/Board'
 import { RulesSheet } from '../components/RulesSheet'
+import { MoveLog, type LogEntry } from '../components/MoveLog'
+import { Confetti } from '../components/Confetti'
 import { useAuth } from '../auth'
 import { useLang } from '../i18n'
 import {
@@ -34,11 +37,13 @@ export function MatchOnlineScreen() {
   const [copied, setCopied] = useState(false)
   const [eloDelta, setEloDelta] = useState<number | null>(null)
   const [rulesOpen, setRulesOpen] = useState(false)
+  const [log, setLog] = useState<LogEntry[]>([])
 
   const knownCountRef = useRef(0)
   const displayPosRef = useRef<Position | null>(null)
   const outcomeRef = useRef<Outcome>({ type: 'playing' })
   const eloDoneRef = useRef(false)
+  const moveNoRef = useRef(0)
 
   const mySide: 0 | 1 | null =
     row && userId
@@ -48,6 +53,20 @@ export function MatchOnlineScreen() {
           ? 1
           : null
       : null
+
+  const pushLog = (mover: 0 | 1, steps: { hole: number; kind: string; count?: number }[]) => {
+    const last = steps[steps.length - 1]
+    moveNoRef.current += 1
+    setLog((l) => [
+      ...l,
+      {
+        n: moveNoRef.current,
+        mover,
+        hole: (last.hole % 9) + 1,
+        note: noteOf(last.kind, last.count),
+      },
+    ])
+  }
 
   // загрузка матча
   useEffect(() => {
@@ -63,14 +82,14 @@ export function MatchOnlineScreen() {
       displayPosRef.current = m.position
       setPos(m.position)
       outcomeRef.current = outcomeOf(m)
+      moveNoRef.current = m.move_count
       setPhase(
         m.status === 'finished' ? 'over' : m.status === 'waiting' ? 'waiting' : 'playing',
       )
     })()
   }, [id, userId])
 
-  // присоединение к ожидающему матчу по кнопке из лобби уже сделано;
-  // если я здесь зритель/участник — подписки
+  // realtime: обновления матча + presence
   useEffect(() => {
     if (!id || !userId || !row) return
     const unsubRow = subscribeMatch(id, (newRow) => {
@@ -84,9 +103,8 @@ export function MatchOnlineScreen() {
           displayPosRef.current = r.position
           setAnim({ base, steps: r.steps, mover: base.turn })
           setPos(newRow.position)
+          pushLog(base.turn, r.steps)
         } catch {
-          // рассинхрон позиций (например, после переподключения) — просто
-          // показываем состояние с сервера без анимации
           displayPosRef.current = newRow.position
           setPos(newRow.position)
         }
@@ -107,7 +125,7 @@ export function MatchOnlineScreen() {
     }
   }, [id, userId, row?.id])
 
-  // применение результата к рейтингу (один раз, только участники)
+  // Эло по завершении (один раз, только участники)
   useEffect(() => {
     if (phase !== 'over' || !row || row.status !== 'finished' || !userId || !mySideIs(row, userId)) return
     if (eloDoneRef.current) return
@@ -115,7 +133,7 @@ export function MatchOnlineScreen() {
     const myElo = mySide === 0 ? (row.p0?.elo ?? 1200) : (row.p1?.elo ?? 1200)
     const oppElo = mySide === 0 ? (row.p1?.elo ?? 1200) : (row.p0?.elo ?? 1200)
     if (row.outcome) {
-      const score = rowOutcomeFor(row, mySide) // 1 | 0 | 0.5
+      const score = rowOutcomeFor(row, mySide)
       void applyResultToProfile(userId, myElo, oppElo, score).then(() => {
         setEloDelta(newEloDelta(myElo, oppElo, score))
         void refreshProfile()
@@ -133,17 +151,28 @@ export function MatchOnlineScreen() {
   const play = (hole: number) => {
     if (!pos || !row || !id || mySide === null) return
     if (pos.status !== 'playing' || pos.turn !== mySide || anim) return
+    sfx('click')
     const r = applyMove(pos, hole)
     outcomeRef.current = r.outcome
     displayPosRef.current = r.position
     knownCountRef.current = row.move_count + 1
+    pushLog(mySide, r.steps)
     setAnim({ base: pos, steps: r.steps, mover: mySide })
     setPos(r.position)
     const newCount = row.move_count + 1
     if (r.outcome.type === 'playing') {
       void sendMove(id, r.position, hole, newCount)
     } else {
-      void sendFinish(id, r.position, hole, newCount, rOutcome(r.outcome))
+      // Эло-итоги обеих сторон считаем на финише
+      const myElo = mySide === 0 ? (row.p0?.elo ?? 1200) : (row.p1?.elo ?? 1200)
+      const oppElo = mySide === 0 ? (row.p1?.elo ?? 1200) : (row.p0?.elo ?? 1200)
+      const score = rowOutcomeForOutcome(r.outcome, mySide)
+      const myAfter = applyK(myElo, oppElo, score)
+      const oppAfter = applyK(oppElo, myElo, (1 - score) as 0 | 0.5 | 1)
+      void sendFinish(id, r.position, hole, newCount, rOutcome(r.outcome), {
+        eloAfter0: mySide === 0 ? myAfter : oppAfter,
+        eloAfter1: mySide === 0 ? oppAfter : myAfter,
+      })
     }
   }
 
@@ -167,8 +196,10 @@ export function MatchOnlineScreen() {
     )
   }
 
-  const oppName =
-    mySide === 0 ? (row.p1?.display_name ?? '…') : (row.p0?.display_name ?? '…')
+  const names: [string, string] = [
+    mySide === 0 ? (row.p1?.display_name ?? '…') : (row.p0?.display_name ?? '…'),
+    mySide === 0 ? (row.p0?.display_name ?? '…') : (row.p1?.display_name ?? '…'),
+  ]
 
   if (phase === 'waiting') {
     const link = `${location.origin}/m/${row.id}`
@@ -183,7 +214,7 @@ export function MatchOnlineScreen() {
           <div />
         </header>
         <div className="wait-card">
-          <span className="wait-code">{row.id.slice(0, 6).toUpperCase()}</span>
+          <span className="wait-code">{row.code ?? '———'}</span>
           {!isHost && (
             <button
               type="button"
@@ -204,28 +235,25 @@ export function MatchOnlineScreen() {
             </button>
           )}
           {isHost && (
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => {
-                void navigator.clipboard.writeText(link)
-                setCopied(true)
-                setTimeout(() => setCopied(false), 1500)
-              }}
-            >
-              {copied ? <IconCheck /> : <IconCopy />} {copied ? '✓' : t('join')}
-            </button>
+            <>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  void navigator.clipboard.writeText(link)
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 1500)
+                }}
+              >
+                {copied ? <IconCheck /> : <IconCopy />} {copied ? '✓' : link.slice(0, 0) + t('copyLink')}
+              </button>
+              <p className="dim-note">{t('codeHint')}</p>
+            </>
           )}
-          <p className="dim-note">{link}</p>
         </div>
       </div>
     )
   }
-
-  const names: [string, string] = [
-    mySide === 0 ? (row.p1?.display_name ?? '…') : (row.p0?.display_name ?? '…'),
-    mySide === 0 ? (row.p0?.display_name ?? '…') : (row.p1?.display_name ?? '…'),
-  ]
 
   const outcomeText =
     row.status === 'finished' && row.outcome
@@ -237,7 +265,7 @@ export function MatchOnlineScreen() {
       : null
 
   return (
-    <div className="page">
+    <div className="page match-page">
       <header className="topbar">
         <button type="button" className="iconbtn" onClick={() => nav('/')}>
           <IconBack />
@@ -255,45 +283,67 @@ export function MatchOnlineScreen() {
         </div>
       </header>
 
-      <div className="turn-bar">
-        {row.status === 'finished' ? (
-          <span
-            className={`turn-badge ${
-              row.outcome === 'draw' ? '' : (row.outcome === 'p0' && mySide === 0) || (row.outcome === 'p1' && mySide === 1) ? 'win' : 'lose'
-            }`}
-          >
-            {outcomeText}
-            {eloDelta !== null && (
-              <em> · {t('eloChange')}: {eloDelta > 0 ? `+${eloDelta}` : eloDelta}</em>
+      <div className="match-layout">
+        <div className="board-col">
+          <div className="turn-bar">
+            {row.status === 'finished' ? (
+              <span
+                className={`turn-badge ${
+                  row.outcome === 'draw'
+                    ? ''
+                    : (row.outcome === 'p0' && mySide === 0) || (row.outcome === 'p1' && mySide === 1)
+                      ? 'win'
+                      : 'lose'
+                }`}
+              >
+                {outcomeText}
+                {eloDelta !== null && (
+                  <em>
+                    {' '}
+                    · {t('eloChange')}: {eloDelta > 0 ? `+${eloDelta}` : eloDelta}
+                  </em>
+                )}
+              </span>
+            ) : anim ? (
+              '…'
+            ) : pos?.turn === mySide ? (
+              <span className="turn-badge my">{t('myTurn')}</span>
+            ) : (
+              t('oppTurn')
             )}
-          </span>
-        ) : anim ? (
-          '…'
-        ) : pos?.turn === mySide ? (
-          <span className="turn-badge my">{t('myTurn')}</span>
-        ) : (
-          t('oppTurn')
-        )}
+          </div>
+
+          <Board
+            position={pos ?? row.position}
+            bottomSide={mySide ?? 0}
+            legalHoles={legal}
+            lastHole={row.last_move}
+            anim={anim}
+            onAnimDone={onAnimDone}
+            onHoleClick={play}
+            names={names}
+          />
+
+          <div className="match-meta">
+            <Avatar uid={userId ?? 'x'} name={profile?.display_name ?? '?'} size={22} />
+            <span>{profile?.display_name}</span>
+            {profile && <span className="dim">· {t('rating')} {profile.elo}</span>}
+          </div>
+        </div>
+
+        <aside className="side-panel">
+          <MoveLog entries={log} name0={names[1]} name1={names[0]} />
+        </aside>
       </div>
 
-      <Board
-        position={pos ?? row.position}
-        bottomSide={mySide ?? 0}
-        legalHoles={legal}
-        lastHole={row.last_move}
-        anim={anim}
-        onAnimDone={onAnimDone}
-        onHoleClick={play}
-        names={names}
+      <Confetti
+        run={
+          row.status === 'finished' &&
+          row.outcome !== 'draw' &&
+          ((row.outcome === 'p0' && mySide === 0) || (row.outcome === 'p1' && mySide === 1))
+        }
       />
-
       <RulesSheet open={rulesOpen} onClose={() => setRulesOpen(false)} />
-
-      <div className="match-meta">
-        <Avatar uid={userId ?? 'x'} name={profile?.display_name ?? '?'} size={22} />
-        <span>{profile?.display_name}</span>
-        {profile && <span className="dim">· {t('rating')} {profile.elo}</span>}
-      </div>
     </div>
   )
 }
@@ -308,10 +358,19 @@ function rowOutcomeFor(row: MatchRow, mySide: 0 | 1 | null): 0 | 0.5 | 1 {
   return iWon ? 1 : 0
 }
 
-function newEloDelta(mine: number, theirs: number, score: 0 | 0.5 | 1): number {
+function rowOutcomeForOutcome(o: Outcome, mySide: 0 | 1): 0 | 0.5 | 1 {
+  if (o.type !== 'win') return 0.5
+  return o.winner === mySide ? 1 : 0
+}
+
+function applyK(mine: number, theirs: number, score: 0 | 0.5 | 1): number {
   const K = 32
   const expected = 1 / (1 + 10 ** ((theirs - mine) / 400))
-  return Math.round(K * (score - expected))
+  return Math.round(mine + K * (score - expected))
+}
+
+function newEloDelta(mine: number, theirs: number, score: 0 | 0.5 | 1): number {
+  return applyK(mine, theirs, score) - mine
 }
 
 function outcomeOf(m: MatchRow): Outcome {
@@ -323,4 +382,11 @@ function outcomeOf(m: MatchRow): Outcome {
 function rOutcome(o: Outcome): 'p0' | 'p1' | 'draw' {
   if (o.type === 'win') return o.winner === 0 ? 'p0' : 'p1'
   return 'draw'
+}
+
+function noteOf(kind: string, count?: number): string | undefined {
+  if (kind === 'capture') return `+${count ?? 0}`
+  if (kind === 'tuzdyk-created') return 'ТУЗДЫҚ'
+  if (kind === 'tuzdyk-drop') return 'туздық'
+  return undefined
 }

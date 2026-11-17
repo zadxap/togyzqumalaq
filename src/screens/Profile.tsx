@@ -1,17 +1,38 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { useLang } from '../i18n'
 import { supabase } from '../supabase'
+import { fetchMyHistory } from '../matches'
+import { DonutChart, EloLine } from '../components/Charts'
+import { setSoundOn, soundOn } from '../sound'
 import { Avatar, LangToggle } from '../components/ui'
 import { IconHistory, IconSignOut } from '../components/Icons'
 
 export function ProfileScreen() {
   const { userId, profile, refreshProfile, signOut } = useAuth()
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const nav = useNavigate()
   const [name, setName] = useState(profile?.display_name ?? '')
   const [saved, setSaved] = useState(false)
+  const [sound, setSound] = useState(soundOn())
+  const [eloPoints, setEloPoints] = useState<number[] | null>(null)
+
+  useEffect(() => {
+    if (profile) setName(profile.display_name)
+  }, [profile?.id])
+
+  useEffect(() => {
+    if (!userId || userId === 'local') return
+    void fetchMyHistory(userId).then((rows) => {
+      const mine = rows
+        .filter((m) => m.meta)
+        .sort((a, b) => a.updated_at.localeCompare(b.updated_at))
+        .map((m) => (m.player0 === userId ? m.meta!.eloAfter0 : m.meta!.eloAfter1))
+        .filter((v): v is number => typeof v === 'number')
+      setEloPoints(mine.length >= 2 ? mine : null)
+    })
+  }, [userId])
 
   const save = async () => {
     if (!userId || userId === 'local' || !name.trim()) return
@@ -19,6 +40,11 @@ export function ProfileScreen() {
     await refreshProfile()
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
+  }
+
+  const toggleSound = () => {
+    setSoundOn(!sound)
+    setSound(!sound)
   }
 
   return (
@@ -36,6 +62,19 @@ export function ProfileScreen() {
         <div className="profile-stats">
           <span className="profile-elo">{profile?.elo ?? 1200}</span>
           <span className="dim">{t('rating')}</span>
+        </div>
+        <button type="button" className={`btn btn-sm ${sound ? 'btn-primary' : 'btn-ghost'}`} onClick={toggleSound}>
+          {sound ? '🔊' : '🔇'}
+        </button>
+      </div>
+
+      <div className="charts-row">
+        <div className="chart-box">
+          <DonutChart w={profile?.wins ?? 0} l={profile?.losses ?? 0} d={profile?.draws ?? 0} />
+        </div>
+        <div className="chart-box">
+          <h3>{t('eloChange')}</h3>
+          <EloLine points={eloPoints ?? []} />
         </div>
       </div>
 

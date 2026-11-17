@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchLiveMatches, fetchOpenMatches, subscribeMatches, cancelMatch, type MatchRow } from '../matches'
+import {
+  fetchByCode,
+  fetchLiveMatches,
+  fetchOpenMatches,
+  joinMatch,
+  subscribeMatches,
+  cancelMatch,
+  type MatchRow,
+} from '../matches'
 import { useAuth } from '../auth'
-import { useLang } from '../i18n'
+import { useLang, type StringKey } from '../i18n'
 import { Avatar, LangToggle } from '../components/ui'
-import { IconCopy, IconEye, IconPlus, IconRobot, IconTrophy, IconUser } from '../components/Icons'
+import { IconEye, IconPlus, IconRobot, IconTrophy, IconUser } from '../components/Icons'
 
 function MatchCard({
   m,
@@ -34,6 +42,9 @@ function MatchCard({
             <span className="match-name dim">{t('waitingOpp')}</span>
           )}
         </div>
+        {m.status === 'waiting' && m.code && (
+          <span className="match-code-chip">{m.code}</span>
+        )}
         {m.status === 'waiting' && isMineWaiting && onCancel && (
           <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>
             {t('cancelMatch')}
@@ -50,12 +61,6 @@ function MatchCard({
           </button>
         )}
       </div>
-      {m.status === 'waiting' && isMineWaiting && (
-        <div className="match-code">
-          <IconCopy size={15} />
-          {t('waitingOpp')}
-        </div>
-      )}
     </div>
   )
 }
@@ -67,6 +72,8 @@ export function LobbyScreen() {
   const [open, setOpen] = useState<MatchRow[]>([])
   const [live, setLive] = useState<MatchRow[]>([])
   const [busy, setBusy] = useState(false)
+  const [code, setCode] = useState('')
+  const [codeErr, setCodeErr] = useState<string | null>(null)
 
   const reload = async () => {
     if (!userId || userId === 'local') return
@@ -108,6 +115,26 @@ export function LobbyScreen() {
     void reload()
   }
 
+  const joinByCode = async () => {
+    if (!code.trim()) {
+      setCodeErr('errEnterCode')
+      return
+    }
+    setBusy(true)
+    setCodeErr(null)
+    try {
+      const m = await fetchByCode(code)
+      if (!m) {
+        setCodeErr('errCodeNotFound')
+        return
+      }
+      if (m.status === 'waiting' && m.player0 !== userId) await joinMatch(m.id, userId!)
+      nav(`/m/${m.id}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="page">
       <header className="topbar">
@@ -127,6 +154,33 @@ export function LobbyScreen() {
         <button type="button" className="btn btn-ghost" onClick={() => nav('/ai')}>
           <IconRobot /> {t('playAI')}
         </button>
+      </div>
+
+      <div className="lobby-actions">
+        <button type="button" className="btn btn-ghost" onClick={() => nav('/hotseat')}>
+          👥 {t('hotseatBtn')}
+        </button>
+      </div>
+
+      <div className="join-by-code">
+        <span className="jbc-label">{t('joinByCode')}</span>
+        <div className="join-row">
+          <input
+            className="code-input"
+            value={code}
+            onChange={(e) => {
+              setCode(e.target.value.toUpperCase())
+              setCodeErr(null)
+            }}
+            placeholder="AB12CD"
+            maxLength={6}
+            spellCheck={false}
+          />
+          <button type="button" className="btn btn-primary" onClick={joinByCode} disabled={busy}>
+            {t('join')}
+          </button>
+        </div>
+        {codeErr && <p className="field-err">{t(codeErr as StringKey)}</p>}
       </div>
 
       <div className="lobby-stats">

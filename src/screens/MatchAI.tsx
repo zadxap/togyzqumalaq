@@ -9,6 +9,9 @@ import {
 } from '../game/engine'
 import { Board, type BoardAnim } from '../components/Board'
 import { RulesSheet } from '../components/RulesSheet'
+import { MoveLog, type LogEntry } from '../components/MoveLog'
+import { Confetti } from '../components/Confetti'
+import { sfx } from '../sound'
 import { useLang } from '../i18n'
 import { IconBack, IconRobot } from '../components/Icons'
 
@@ -24,12 +27,13 @@ export function MatchAIScreen() {
   const [anim, setAnim] = useState<BoardAnim | null>(null)
   const [thinking, setThinking] = useState(false)
   const [result, setResult] = useState<Outcome | null>(null)
+  const [log, setLog] = useState<LogEntry[]>([])
   const [rulesOpen, setRulesOpen] = useState(false)
 
   const workerRef = useRef<Worker | null>(null)
   const posRef = useRef(pos)
-  const turnRef = useRef<'me' | 'ai' | null>(null)
   const outcomeRef = useRef<Outcome>({ type: 'playing' })
+  const moveNoRef = useRef(0)
 
   useEffect(() => {
     const w = new Worker(new URL('../game/ai.worker.ts', import.meta.url), { type: 'module' })
@@ -37,7 +41,6 @@ export function MatchAIScreen() {
     return () => w.terminate()
   }, [])
 
-  // ответ ИИ из воркера
   useEffect(() => {
     const w = workerRef.current
     if (!w) return
@@ -48,22 +51,29 @@ export function MatchAIScreen() {
       const r = applyMove(base, e.data.move)
       outcomeRef.current = r.outcome
       posRef.current = r.position
-      turnRef.current = 'ai'
+      moveNoRef.current += 1
+      const last = r.steps[r.steps.length - 1]
+      setLog((l) => [
+        ...l,
+        {
+          n: moveNoRef.current,
+          mover: 1,
+          hole: (last.hole % 9) + 1,
+          note: noteOf(last.kind, last.count),
+        },
+      ])
       setAnim({ base, steps: r.steps, mover: 1 })
       setPos(r.position)
     }
   }, [])
 
   const onAnimDone = () => {
-    setAnim(null) // обязательно: иначе доска «висит в анимации» и клики блокируются
-    turnRef.current = null
-    turnWasRef.current = null
+    setAnim(null)
     if (outcomeRef.current.type !== 'playing') {
       setResult(outcomeRef.current)
       return
     }
     const cur = posRef.current
-    // мой ход завершён и очередь ИИ
     if (cur.status === 'playing' && cur.turn === 1) {
       setThinking(true)
       workerRef.current?.postMessage({
@@ -73,15 +83,23 @@ export function MatchAIScreen() {
     }
   }
 
-  const turnWasRef = useRef<'me' | 'ai' | null>(null)
-
   const play = (hole: number) => {
     if (pos.status !== 'playing' || pos.turn !== 0 || anim || thinking) return
+    sfx('click')
     const r = applyMove(pos, hole)
     outcomeRef.current = r.outcome
     posRef.current = r.position
-    turnWasRef.current = 'me'
-    turnRef.current = 'me'
+    moveNoRef.current += 1
+    const last = r.steps[r.steps.length - 1]
+    setLog((l) => [
+      ...l,
+      {
+        n: moveNoRef.current,
+        mover: 0,
+        hole: (last.hole % 9) + 1,
+        note: noteOf(last.kind, last.count),
+      },
+    ])
     setAnim({ base: pos, steps: r.steps, mover: 0 })
     setPos(r.position)
   }
@@ -91,7 +109,9 @@ export function MatchAIScreen() {
     setPos(posRef.current)
     setAnim(null)
     setResult(null)
+    setLog([])
     outcomeRef.current = { type: 'playing' }
+    moveNoRef.current = 0
   }
 
   if (!level) {
@@ -125,7 +145,7 @@ export function MatchAIScreen() {
     : null
 
   return (
-    <div className="page">
+    <div className="page match-page">
       <header className="topbar">
         <button type="button" className="iconbtn" onClick={() => nav('/')}>
           <IconBack />
@@ -138,49 +158,65 @@ export function MatchAIScreen() {
         </button>
       </header>
 
-      <div className="turn-bar">
-        {result ? (
-          <span
-            className={`turn-badge ${
-              result.type === 'draw' ? '' : result.type === 'win' && result.winner === 0 ? 'win' : 'lose'
-            }`}
-          >
-            {outcomeText}
-          </span>
-        ) : thinking ? (
-          t('aiThinking')
-        ) : pos.turn === 0 ? (
-          <span className="turn-badge my">{t('myTurn')}</span>
-        ) : (
-          t('oppTurn')
-        )}
+      <div className="match-layout">
+        <div className="board-col">
+          <div className="turn-bar">
+            {result ? (
+              <span
+                className={`turn-badge ${
+                  result.type === 'draw' ? '' : result.type === 'win' && result.winner === 0 ? 'win' : 'lose'
+                }`}
+              >
+                {outcomeText}
+              </span>
+            ) : thinking ? (
+              t('aiThinking')
+            ) : pos.turn === 0 ? (
+              <span className="turn-badge my">{t('myTurn')}</span>
+            ) : (
+              t('oppTurn')
+            )}
+          </div>
+
+          <p className="dim-note hint">{t('hintClick')}</p>
+
+          <Board
+            position={pos}
+            bottomSide={0}
+            legalHoles={pos.status === 'playing' && pos.turn === 0 ? legalMoves(pos, 0) : []}
+            lastHole={null}
+            anim={anim}
+            onAnimDone={onAnimDone}
+            onHoleClick={play}
+            names={['ИИ', t('youName')]}
+          />
+
+          {result && (
+            <div className="result-actions">
+              <button type="button" className="btn btn-primary" onClick={restart}>
+                <IconRobot /> {t('rematch')}
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => setLevel(null)}>
+                {t('difficulty')}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <aside className="side-panel">
+          <MoveLog entries={log} name0={t('youName')} name1="ИИ" />
+        </aside>
       </div>
 
-      <p className="dim-note hint">{t('hintClick')}</p>
-
-      <Board
-        position={pos}
-        bottomSide={0}
-        legalHoles={pos.status === 'playing' && pos.turn === 0 ? legalMoves(pos, 0) : []}
-        lastHole={null}
-        anim={anim}
-        onAnimDone={onAnimDone}
-        onHoleClick={play}
-        names={['ИИ', t('youName')]}
-      />
-
-      {result && (
-        <div className="result-actions">
-          <button type="button" className="btn btn-primary" onClick={restart}>
-            <IconRobot /> {t('rematch')}
-          </button>
-          <button type="button" className="btn btn-ghost" onClick={() => setLevel(null)}>
-            {t('difficulty')}
-          </button>
-        </div>
-      )}
-
+      <Confetti run={result?.type === 'win' && result.winner === 0} />
       <RulesSheet open={rulesOpen} onClose={() => setRulesOpen(false)} />
     </div>
   )
+}
+
+function noteOf(kind: string, count?: number): string | undefined {
+  if (kind === 'capture') return `+${count ?? 0}`
+  if (kind === 'tuzdyk-created') return 'ТУЗДЫҚ'
+  if (kind === 'tuzdyk-drop') return 'туздық'
+  return undefined
 }

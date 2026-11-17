@@ -4,6 +4,7 @@ import { LogoMark } from './components/Icons'
 import { AuthScreen } from './screens/AuthScreen'
 import { LobbyScreen } from './screens/Lobby'
 import { MatchAIScreen } from './screens/MatchAI'
+import { HotseatScreen } from './screens/Hotseat'
 import { MatchOnlineScreen } from './screens/MatchOnline'
 import { ProfileScreen } from './screens/Profile'
 import { HistoryScreen } from './screens/History'
@@ -36,6 +37,7 @@ export default function App() {
       <Route path="/" element={<LobbyScreen />} />
       <Route path="/m/:id" element={<MatchOnlineScreen />} />
       <Route path="/ai" element={<MatchAIScreen />} />
+      <Route path="/hotseat" element={<HotseatScreen />} />
       <Route path="/profile" element={<ProfileScreen />} />
       <Route path="/history" element={<HistoryScreen />} />
       <Route path="*" element={<Navigate to="/" replace />} />

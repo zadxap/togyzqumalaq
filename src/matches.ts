@@ -12,6 +12,8 @@ export interface MatchRow {
   outcome: 'p0' | 'p1' | 'draw' | null
   move_count: number
   last_move: number | null
+  code: string | null
+  meta: { eloAfter0?: number; eloAfter1?: number } | null
   created_at: string
   updated_at: string
   p0?: { display_name: string; elo: number }
@@ -19,18 +21,38 @@ export interface MatchRow {
 }
 
 export const MATCH_SELECT =
-  'id, status, player0, player1, position, outcome, move_count, last_move, created_at, updated_at,' +
+  'id, status, player0, player1, position, outcome, move_count, last_move, code, meta, created_at, updated_at,' +
   'p0:profiles!matches_player0_fkey (display_name, elo),' +
   'p1:profiles!matches_player1_fkey (display_name, elo)'
 
+const CODE_ALPHABET = 'ACDEFGHJKLMNPQRTUVWXYZ234679'
+const genCode = (): string =>
+  Array.from(
+    { length: 6 },
+    () => CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)],
+  ).join('')
+
 export async function createMatch(userId: string, position: Position): Promise<MatchRow> {
-  const { data, error } = await sb
+  // короткий код комнаты: до 6 попыток на коллизию (23505)
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const { data, error } = await sb
+      .from('matches')
+      .insert({ status: 'waiting', player0: userId, position, move_count: 0, code: genCode() })
+      .select(MATCH_SELECT)
+      .single()
+    if (!error) return data as unknown as MatchRow
+    if ((error as { code?: string }).code !== '23505') throw error
+  }
+  throw new Error('не удалось сгенерировать код комнаты')
+}
+
+export async function fetchByCode(code: string): Promise<MatchRow | null> {
+  const { data } = await sb
     .from('matches')
-    .insert({ status: 'waiting', player0: userId, position, move_count: 0 })
     .select(MATCH_SELECT)
-    .single()
-  if (error) throw error
-  return data as unknown as MatchRow
+    .eq('code', code.trim().toUpperCase())
+    .maybeSingle()
+  return (data as unknown as MatchRow) ?? null
 }
 
 export async function joinMatch(id: string, userId: string): Promise<MatchRow> {
@@ -68,13 +90,14 @@ export async function sendMove(
   if (error) throw error
 }
 
-/** финальный ход: позиция + статус finished + исход одной транзакцией */
+/** финальный ход: позиция + статус finished + исход + Эло-итоги обеих сторон */
 export async function sendFinish(
   id: string,
   position: Position,
   hole: number,
   moveCount: number,
   outcome: 'p0' | 'p1' | 'draw',
+  meta?: { eloAfter0?: number; eloAfter1?: number },
 ): Promise<void> {
   const { error } = await sb
     .from('matches')
@@ -84,6 +107,7 @@ export async function sendFinish(
       move_count: moveCount,
       status: 'finished',
       outcome,
+      ...(meta ? { meta } : {}),
     })
     .eq('id', id)
   if (error) throw error

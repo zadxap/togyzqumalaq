@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { Position, Side, SowStep } from '../game/engine'
+import { sfx } from '../sound'
 
 export interface BoardAnim {
   base: Position
@@ -65,16 +66,20 @@ export function Board({
       const s = anim.steps[idx++]
       if (s.kind === 'drop') {
         cur.holes[s.hole] += 1
+        sfx('drop')
       } else if (s.kind === 'tuzdyk-drop') {
         const owner = cur.tuzdyk[s.hole]
         if (owner !== null) cur.kazan[owner] += 1
+        sfx('drop')
       } else if (s.kind === 'capture') {
         cur.kazan[anim.mover] += s.count ?? 0
         cur.holes[s.hole] = 0
+        sfx('capture')
       } else if (s.kind === 'tuzdyk-created') {
         cur.tuzdyk[s.hole] = anim.mover
         cur.kazan[anim.mover] += s.count ?? 3
         cur.holes[s.hole] = 0
+        sfx('tuzdyk')
       }
       setFlash(s.hole)
       setFrame(JSON.parse(JSON.stringify(cur)) as Position)
