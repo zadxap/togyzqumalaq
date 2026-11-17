@@ -1,0 +1,44 @@
+:root {
+  --paper: #f3ede2;
+  --ink: #2a1d12;
+  --wood: #6b4423;
+  --cream: #f3ede2;
+  --terra: #bf4e24;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1 {
+  font-family: 'Montserrat', sans-serif;
+}
+
+.placeholder {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.placeholder h1 {
+  font-size: 36px;
+  font-weight: 800;
+}
+
+.placeholder p {
+  color: var(--wood);
+  font-size: 14.5px;
+}
