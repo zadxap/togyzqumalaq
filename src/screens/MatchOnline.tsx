@@ -187,7 +187,7 @@ export function MatchOnlineScreen() {
     return (
       <div className="page pad-center">
         <header className="topbar">
-          <button type="button" className="iconbtn" onClick={() => nav('/')}>
+          <button type="button" className="iconbtn" onClick={() => nav('/')} aria-label="back">
             <IconBack />
           </button>
           <h1 className="topbar-title">{t('notFound')}</h1>
@@ -208,7 +208,7 @@ export function MatchOnlineScreen() {
     return (
       <div className="page pad-center">
         <header className="topbar">
-          <button type="button" className="iconbtn" onClick={() => nav('/')}>
+          <button type="button" className="iconbtn" onClick={() => nav('/')} aria-label="back">
             <IconBack />
           </button>
           <h1 className="topbar-title">{t('waitingOpp')}</h1>
@@ -252,7 +252,7 @@ export function MatchOnlineScreen() {
                   setTimeout(() => setCopied(false), 1500)
                 }}
               >
-                {copied ? <IconCheck /> : <IconCopy />} {copied ? '✓' : link.slice(0, 0) + t('copyLink')}
+                {copied ? <IconCheck /> : <IconCopy />} {copied ? '✓' : t('copyLink')}
               </button>
               <p className="dim-note">{t('codeHint')}</p>
             </>
@@ -274,7 +274,7 @@ export function MatchOnlineScreen() {
   return (
     <div className="page match-page">
       <header className="topbar">
-        <button type="button" className="iconbtn" onClick={() => nav('/')}>
+        <button type="button" className="iconbtn" onClick={() => nav('/')} aria-label="back">
           <IconBack />
         </button>
         <h1 className="topbar-title">

@@ -10,6 +10,7 @@
   --wood: #2a1d12;
   --wood2: #332415;
   --ink: #f3ede2;
+  --cream: #f3ede2; /* алиас: фишки/камни (используется в .bead и др.) */
   --ink2: #b3a48f;
   --line: rgba(243, 237, 226, 0.09);
   --terra: #bf4e24;
@@ -662,7 +663,7 @@ h3 {
   padding-left: 8px;
 }
 .wait-card .dim-note {
-  word-break: break-all;
+  overflow-wrap: anywhere;
   text-align: center;
   font-size: 12px;
 }

@@ -118,7 +118,7 @@ export function MatchAIScreen() {
     return (
       <div className="page">
         <header className="topbar">
-          <button type="button" className="iconbtn" onClick={() => nav('/')}>
+          <button type="button" className="iconbtn" onClick={() => nav('/')} aria-label="back">
             <IconBack />
           </button>
           <h1 className="topbar-title">{t('playAI')}</h1>
@@ -147,7 +147,7 @@ export function MatchAIScreen() {
   return (
     <div className="page match-page">
       <header className="topbar">
-        <button type="button" className="iconbtn" onClick={() => nav('/')}>
+        <button type="button" className="iconbtn" onClick={() => nav('/')} aria-label="back">
           <IconBack />
         </button>
         <h1 className="topbar-title">

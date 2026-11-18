@@ -7,6 +7,7 @@ import { Confetti } from '../components/Confetti'
 import { sfx } from '../sound'
 import { useLang } from '../i18n'
 import { IconBack, IconCheck } from '../components/Icons'
+import { RulesSheet } from '../components/RulesSheet'
 
 /** Двое на одном устройстве: pass-and-play */
 export function HotseatScreen() {
@@ -16,6 +17,7 @@ export function HotseatScreen() {
   const [anim, setAnim] = useState<BoardAnim | null>(null)
   const [result, setResult] = useState<Outcome | null>(null)
   const [log, setLog] = useState<LogEntry[]>([])
+  const [rulesOpen, setRulesOpen] = useState(false)
   const moveNoRef = useRef(0)
   const outcomeRef = useRef<Outcome>({ type: 'playing' })
   const posRef = useRef(pos)
@@ -57,11 +59,13 @@ export function HotseatScreen() {
   return (
     <div className="page match-page">
       <header className="topbar">
-        <button type="button" className="iconbtn" onClick={() => nav('/')}>
+        <button type="button" className="iconbtn" onClick={() => nav('/')} aria-label="back">
           <IconBack />
         </button>
         <h1 className="topbar-title">{t('hotseatBtn')}</h1>
-        <div />
+        <button type="button" className="iconbtn" onClick={() => setRulesOpen(true)} aria-label="rules">
+          ?
+        </button>
       </header>
 
       <div className="match-layout">
@@ -81,7 +85,6 @@ export function HotseatScreen() {
               '…'
             ) : (
               <span className="turn-badge my">
-                {t('myTurn').slice(0, 0)}
                 {pos.turn === 0 ? t('player1Name') : t('player2Name')} — {t('myTurn')}
                 <IconCheck size={14} />
               </span>
@@ -114,6 +117,7 @@ export function HotseatScreen() {
       </div>
 
       <Confetti run={result?.type === 'win'} />
+      <RulesSheet open={rulesOpen} onClose={() => setRulesOpen(false)} />
     </div>
   )
 }

@@ -74,12 +74,20 @@ export function LobbyScreen() {
   const [busy, setBusy] = useState(false)
   const [code, setCode] = useState('')
   const [codeErr, setCodeErr] = useState<string | null>(null)
+  const [loadErr, setLoadErr] = useState(false)
 
   const reload = async () => {
     if (!userId || userId === 'local') return
-    const [o, l] = await Promise.all([fetchOpenMatches(), fetchLiveMatches()])
-    setOpen(o.filter((m) => m.player0 !== userId))
-    setLive(l)
+    try {
+      const [o, l] = await Promise.all([fetchOpenMatches(), fetchLiveMatches()])
+      // свои ожидающие вызовы тоже показываем — с кнопкой «Отменить»
+      setOpen(o)
+      setLive(l)
+      setLoadErr(false)
+    } catch (e) {
+      console.error(e)
+      setLoadErr(true)
+    }
   }
 
   useEffect(() => {
@@ -194,6 +202,7 @@ export function LobbyScreen() {
 
       <section className="section">
         <h2>{t('openChallenges')}</h2>
+        {loadErr && <p className="field-err">{t('loadErr')}</p>}
         {open.length === 0 && <p className="dim-note">{t('noOpen')}</p>}
         <div className="card-list">
           {open.map((m) => (

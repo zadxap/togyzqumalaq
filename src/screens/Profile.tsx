@@ -50,7 +50,7 @@ export function ProfileScreen() {
   return (
     <div className="page">
       <header className="topbar">
-        <button type="button" className="iconbtn" onClick={() => nav('/')}>
+        <button type="button" className="iconbtn" onClick={() => nav('/')} aria-label="back">
           ⌂
         </button>
         <h1 className="topbar-title">{t('profile')}</h1>
